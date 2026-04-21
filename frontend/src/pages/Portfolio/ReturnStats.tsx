@@ -14,18 +14,15 @@ const PERIODS = [
 const METRICS = [
   { key: "total_return", label: "总回报", fmt: fmtPct },
   { key: "relative_return", label: "相对回报", fmt: fmtPct },
-  { key: "max_gain", label: "最大涨幅", fmt: fmtPct },
-  { key: "max_loss", label: "最大跌幅", fmt: fmtPct },
-  { key: "ann_return", label: "年化平均回报", fmt: fmtPct },
-  { key: "ann_excess_return", label: "年化平均超额回报", fmt: fmtPct },
+  { key: "ann_return", label: "年化收益率", fmt: fmtPct },
+  { key: "ann_excess_return", label: "年化超额收益率", fmt: fmtPct },
   { key: "downside_risk", label: "下行风险", fmt: fmtPct },
   { key: "ann_vol", label: "年化波动率", fmt: fmtPct },
-  { key: "alpha", label: "Alpha", fmt: (v: number) => fmtNum(v, 4) },
-  { key: "sharpe", label: "Sharpe", fmt: (v: number) => fmtNum(v, 4) },
-  { key: "treynor", label: "Treynor", fmt: (v: number) => fmtNum(v, 4) },
-  { key: "jenson", label: "Jenson", fmt: (v: number) => fmtNum(v, 4) },
-  { key: "beta", label: "Beta", fmt: (v: number) => fmtNum(v, 4) },
-  { key: "sortino", label: "Sortino", fmt: (v: number) => fmtNum(v, 4) },
+  { key: "max_drawdown", label: "最大回撤", fmt: fmtPct },
+  { key: "sharpe", label: "Sharpe", fmt: (v: number) => fmtNum(v, 2) },
+  { key: "calmar", label: "Calmar", fmt: (v: number) => fmtNum(v, 2) },
+  { key: "beta", label: "Beta", fmt: (v: number) => fmtNum(v, 2) },
+  { key: "sortino", label: "Sortino", fmt: (v: number) => fmtNum(v, 2) },
 ];
 
 export default function ReturnStats() {
@@ -44,24 +41,24 @@ export default function ReturnStats() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-600 w-40">指标</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-600 w-40">指标</th>
               {PERIODS.map((p) => (
-                <th key={p.key} className="text-right px-4 py-3 text-xs font-medium text-gray-600">{p.label}</th>
+                <th key={p.key} className="text-right px-4 py-2.5 text-xs font-medium text-gray-600">{p.label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {METRICS.map((m, i) => (
               <tr key={m.key} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
-                <td className="px-4 py-2.5 text-xs text-gray-600">{m.label}</td>
+                <td className="px-4 py-2.5 text-gray-600">{m.label}</td>
                 {PERIODS.map((p) => {
                   const v = period_stats?.[p.key]?.[m.key];
                   const formatted = v !== undefined ? m.fmt(v) : "—";
                   const isPositive = typeof v === "number" && v > 0;
                   const isNegative = typeof v === "number" && v < 0;
                   return (
-                    <td key={p.key} className={`px-4 py-2.5 text-xs text-right font-mono
-                      ${isPositive ? "text-brand-red" : isNegative ? "text-brand-deep-blue" : "text-gray-600"}`}>
+                    <td key={p.key} className={`px-4 py-2.5 text-right
+                      ${isPositive ? "text-brand-red" : isNegative ? "text-green-600" : "text-gray-600"}`}>
                       {formatted}
                     </td>
                   );

@@ -28,23 +28,70 @@ export default function Overview() {
     { label: "下行风险", value: fmtPct(kpis.downside_risk), positive: null },
   ];
 
+  const navData: number[] = nav_series.portfolio;
+  let peak = navData[0];
+  const drawdownData = navData.map((v: number) => {
+    peak = Math.max(peak, v);
+    return peak > 0 ? (v - peak) / peak : 0;
+  });
+  const minDrawdown = Math.min(...drawdownData);
+
   const navOption = {
-    tooltip: { trigger: "axis" },
-    legend: { data: ["组合", "基准"], top: 0 },
+    tooltip: {
+      trigger: "axis",
+      formatter: (params: any[]) =>
+        params
+          .filter((p: any) => p.seriesName !== "回撤" || (p.data as number) !== 0)
+          .map((p: any) => {
+            if (p.seriesName === "回撤") return `回撤: ${((p.data as number) * 100).toFixed(2)}%`;
+            return `${p.seriesName}: ${(p.data as number).toFixed(2)}`;
+          })
+          .join("<br/>"),
+    },
+    legend: { data: ["组合", "基准", "回撤"], top: 0 },
     xAxis: { type: "category", data: nav_series.dates, axisLabel: { fontSize: 10 } },
-    yAxis: { type: "value", axisLabel: { fontSize: 10 } },
+    yAxis: [
+      {
+        type: "value",
+        scale: true,
+        axisLabel: { fontSize: 10, formatter: (v: number) => v.toFixed(0) },
+      },
+      {
+        type: "value",
+        position: "right",
+        min: minDrawdown * 1.2,
+        max: 0,
+        axisLabel: { fontSize: 10, formatter: (v: number) => (v * 100).toFixed(1) + "%" },
+        splitLine: { show: false },
+      },
+    ],
     series: [
       { name: "组合", type: "line", data: nav_series.portfolio, lineStyle: { color: "#C41230" }, showSymbol: false },
       { name: "基准", type: "line", data: nav_series.benchmark, lineStyle: { color: "#1B3A6B" }, showSymbol: false },
+      {
+        name: "回撤",
+        type: "line",
+        yAxisIndex: 1,
+        data: drawdownData,
+        showSymbol: false,
+        lineStyle: { opacity: 0 },
+        areaStyle: { color: "#C41230", opacity: 0.2, origin: "auto" },
+        itemStyle: { color: "#C41230" },
+      },
     ],
   };
 
   const assetKeys = Object.keys(weight_series.weights);
   const weightOption = {
-    tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "cross" },
+      formatter: (params: any[]) =>
+        params.map((p: any) => `${p.seriesName}: ${((p.data as number) * 100).toFixed(2)}%`).join("<br/>"),
+    },
     legend: { data: assetKeys, top: 0 },
     xAxis: { type: "category", data: weight_series.dates, axisLabel: { fontSize: 10 } },
-    yAxis: { type: "value", axisLabel: { formatter: (v: number) => (v * 100).toFixed(0) + "%" } },
+    yAxis: { type: "value", max: 1, axisLabel: { formatter: (v: number) => (v * 100).toFixed(0) + "%" } },
     series: assetKeys.map((a, i) => ({
       name: a,
       type: "line",
@@ -68,12 +115,12 @@ export default function Overview() {
 
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
         <h3 className="text-sm font-medium text-gray-700 mb-3">业绩表现</h3>
-        <ReactECharts option={navOption} style={{ height: 280 }} />
+        <ReactECharts option={navOption} style={{ height: 380 }} />
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-4">
         <h3 className="text-sm font-medium text-gray-700 mb-3">持仓权重</h3>
-        <ReactECharts option={weightOption} style={{ height: 240 }} />
+        <ReactECharts option={weightOption} style={{ height: 320 }} />
       </div>
     </div>
   );

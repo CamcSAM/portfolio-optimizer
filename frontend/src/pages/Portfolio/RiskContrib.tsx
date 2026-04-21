@@ -2,7 +2,7 @@ import { useParams } from "react-router-dom";
 import { useState } from "react";
 import ReactECharts from "echarts-for-react";
 import { usePortfolioResult } from "../../hooks/usePortfolioResult";
-import { fmtPct, fmtNum } from "../../lib/utils";
+import { fmtPct } from "../../lib/utils";
 
 const COLORS = ["#C41230", "#1B3A6B", "#E8899A", "#2B5BA8", "#F2C4CB", "#7BA7D4"];
 
@@ -19,19 +19,41 @@ export default function RiskContrib() {
   const activeDate = selectedDate || risk_contribution.dates[risk_contribution.dates.length - 1];
   const detail = risk_contribution.detail.find((d: any) => d.date === activeDate);
 
+  const totalContrib = risk_contribution.dates.map((_: string, j: number) =>
+    assets.reduce((sum: number, a: string) => sum + (risk_contribution.contributions[a][j] ?? 0), 0)
+  );
+
   const chartOption = {
-    tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
-    legend: { data: assets, top: 0 },
+    tooltip: {
+      trigger: "axis",
+      formatter: (params: any[]) =>
+        params.map((p: any) => `${p.seriesName}: ${((p.data as number) * 100).toFixed(2)}%`).join("<br/>"),
+    },
+    legend: { data: [...assets, "总风险"], top: 0 },
     xAxis: { type: "category", data: risk_contribution.dates, axisLabel: { fontSize: 10 } },
-    yAxis: { type: "value", axisLabel: { formatter: (v: number) => (v * 100).toFixed(0) + "%" } },
-    series: assets.map((a, i) => ({
-      name: a,
-      type: "bar",
-      stack: "total",
-      data: risk_contribution.contributions[a],
-      color: COLORS[i % COLORS.length],
-      emphasis: { focus: "series" },
-    })),
+    yAxis: { type: "value", min: 0, axisLabel: { formatter: (v: number) => (v * 100).toFixed(1) + "%" } },
+    series: [
+      ...assets.map((a, i) => ({
+        name: a,
+        type: "bar",
+        stack: "total",
+        data: risk_contribution.contributions[a],
+        color: COLORS[i % COLORS.length],
+        emphasis: { focus: "series" },
+      })),
+      {
+        name: "总风险",
+        type: "line",
+        data: totalContrib,
+        color: "#374151",
+        showSymbol: true,
+        symbol: "circle",
+        symbolSize: 5,
+        lineStyle: { width: 2 },
+        itemStyle: { color: "#374151", borderWidth: 1.5, borderColor: "#fff" },
+        z: 10,
+      },
+    ],
   };
 
   return (
@@ -41,12 +63,11 @@ export default function RiskContrib() {
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
         <ReactECharts
           option={chartOption}
-          style={{ height: 300 }}
+          style={{ height: 400 }}
           onEvents={{
             click: (params: any) => setSelectedDate(params.name),
           }}
         />
-        <p className="text-xs text-gray-400 text-center mt-1">点击图表日期查看明细</p>
       </div>
 
       {detail && (
@@ -67,10 +88,16 @@ export default function RiskContrib() {
                 <tr key={a.code} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                   <td className="px-4 py-2.5 font-mono text-brand-deep-blue">{a.code}</td>
                   <td className="px-4 py-2.5">{fmtPct(a.weight)}</td>
-                  <td className="px-4 py-2.5">{fmtNum(a.risk_contribution, 6)}</td>
+                  <td className="px-4 py-2.5">{fmtPct(a.risk_contribution)}</td>
                   <td className="px-4 py-2.5">{fmtPct(a.contribution_pct)}</td>
                 </tr>
               ))}
+              <tr className="border-t border-gray-200 font-medium bg-gray-50">
+                <td className="px-4 py-2.5 text-gray-700">合计</td>
+                <td className="px-4 py-2.5">{fmtPct(detail.assets.reduce((s: number, a: any) => s + a.weight, 0))}</td>
+                <td className="px-4 py-2.5">{fmtPct(detail.assets.reduce((s: number, a: any) => s + a.risk_contribution, 0))}</td>
+                <td className="px-4 py-2.5">{fmtPct(detail.assets.reduce((s: number, a: any) => s + a.contribution_pct, 0))}</td>
+              </tr>
             </tbody>
           </table>
         </div>

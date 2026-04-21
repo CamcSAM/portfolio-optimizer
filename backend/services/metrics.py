@@ -71,32 +71,33 @@ def compute_kpis(nav: pd.Series, benchmark: pd.Series, risk_free_rate: float = 0
 
 def _slice_stats(nav: pd.Series, bench: pd.Series, rf: float) -> Dict:
     if len(nav) < 2:
-        return {k: 0.0 for k in ["total_return", "relative_return", "max_gain", "max_loss",
-                                   "ann_return", "ann_excess_return", "downside_risk", "ann_vol",
-                                   "alpha", "sharpe", "treynor", "jenson", "beta", "sortino"]}
+        return {k: 0.0 for k in ["total_return", "relative_return", "ann_return", "ann_excess_return",
+                                   "downside_risk", "ann_vol", "max_drawdown", "alpha", "sharpe",
+                                   "calmar", "treynor", "jenson", "beta", "sortino"]}
     bench = bench.reindex(nav.index, method="ffill")
-    port_ret = nav.pct_change().dropna()
-    bench_ret = bench.pct_change().dropna()
     port_ann = _annualized_return(nav)
     bench_ann = _annualized_return(bench)
     vol = _annualized_vol(nav)
+    mdd = _max_drawdown(nav)
     alpha, beta = _alpha_beta(nav, bench, rf)
     sharpe = (port_ann - rf) / vol if vol > 0 else 0.0
+    calmar = port_ann / abs(mdd) if mdd < 0 else 0.0
     sortino_denom = _downside_risk(nav)
     sortino = (port_ann - rf) / sortino_denom if sortino_denom > 0 else 0.0
     treynor = (port_ann - rf) / beta if beta != 0 else 0.0
     jenson = port_ann - (rf + beta * (bench_ann - rf))
+    port_ret = nav.pct_change().dropna()
     return {
         "total_return": float(nav.iloc[-1] / nav.iloc[0] - 1),
         "relative_return": float((nav.iloc[-1] / nav.iloc[0]) - (bench.iloc[-1] / bench.iloc[0])),
-        "max_gain": float(port_ret.max()),
-        "max_loss": float(port_ret.min()),
         "ann_return": port_ann,
         "ann_excess_return": port_ann - bench_ann,
         "downside_risk": _downside_risk(nav),
         "ann_vol": vol,
+        "max_drawdown": mdd,
         "alpha": alpha,
         "sharpe": sharpe,
+        "calmar": calmar,
         "treynor": treynor,
         "jenson": jenson,
         "beta": beta,

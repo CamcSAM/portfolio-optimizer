@@ -6,7 +6,7 @@ app = FastAPI(title="Portfolio Backtest API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "https://essence-anchor-tiling.ngrok-free.app", "https://essence-anchor-tiling.ngrok-free.dev"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

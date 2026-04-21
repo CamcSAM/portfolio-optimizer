@@ -1,4 +1,4 @@
-import os, json
+import io, os, json
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 import pandas as pd
 
@@ -9,14 +9,17 @@ META_FILE = "data/assets_meta.json"
 
 def _load_meta() -> dict:
     if os.path.exists(META_FILE):
-        with open(META_FILE) as f:
-            return json.load(f)
+        try:
+            with open(META_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            return {}
     return {}
 
 
 def _save_meta(meta: dict):
     os.makedirs("data", exist_ok=True)
-    with open(META_FILE, "w") as f:
+    with open(META_FILE, "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
 
@@ -56,6 +59,61 @@ async def upload_asset(
     meta[code] = {"name": name or code, "asset_class": asset_class}
     _save_meta(meta)
     return {"code": code, "status": "uploaded"}
+
+
+@router.post("/upload-excel")
+async def upload_excel(
+    file: UploadFile = File(...),
+    asset_class: str = Form(""),
+):
+    content = await file.read()
+    df = pd.read_excel(io.BytesIO(content), parse_dates=[0])
+    df.columns = [str(c) for c in df.columns]
+    date_col = df.columns[0]
+    df = df.rename(columns={date_col: "date"}).set_index("date")
+
+    prices = (1 + df).cumprod()
+
+    os.makedirs(ASSETS_DIR, exist_ok=True)
+    meta = _load_meta()
+    imported = []
+    for code in prices.columns:
+        series = prices[code].dropna().reset_index()
+        series.columns = ["date", code]
+        series["date"] = series["date"].dt.strftime("%Y-%m-%d")
+        csv_path = os.path.join(ASSETS_DIR, f"{code}.csv")
+        series.to_csv(csv_path, index=False)
+        meta[code] = {"name": code, "asset_class": asset_class}
+        imported.append(code)
+
+    _save_meta(meta)
+    return {"imported": imported, "count": len(imported)}
+
+
+@router.post("/reload-defaults")
+async def reload_defaults():
+    path = "data/default_assets.xlsx"
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="data/default_assets.xlsx not found")
+    with open(path, "rb") as f:
+        content = f.read()
+    df = pd.read_excel(io.BytesIO(content), parse_dates=[0])
+    df.columns = [str(c) for c in df.columns]
+    date_col = df.columns[0]
+    df = df.rename(columns={date_col: "date"}).set_index("date")
+    prices = (1 + df).cumprod()
+    os.makedirs(ASSETS_DIR, exist_ok=True)
+    meta = _load_meta()
+    imported = []
+    for code in prices.columns:
+        series = prices[code].dropna().reset_index()
+        series.columns = ["date", code]
+        series["date"] = series["date"].dt.strftime("%Y-%m-%d")
+        series.to_csv(os.path.join(ASSETS_DIR, f"{code}.csv"), index=False)
+        meta[code] = {"name": code, "asset_class": "macro"}
+        imported.append(code)
+    _save_meta(meta)
+    return {"imported": imported, "count": len(imported)}
 
 
 @router.delete("/{code}")

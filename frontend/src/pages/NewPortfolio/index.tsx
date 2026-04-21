@@ -1,13 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Equal, Ban } from "lucide-react";
+import { X, Ban } from "lucide-react";
 import CollapseSection from "../../components/CollapseSection";
 import { useAssets } from "../../hooks/useAssets";
 import type { Asset } from "../../hooks/useAssets";
 import { portfoliosApi } from "../../lib/api";
 
 interface AssetRow extends Asset {
-  initial_weight: number;
   weight_lo: number;
   weight_hi: number;
 }
@@ -40,34 +39,37 @@ export default function NewPortfolio() {
   const [name, setName] = useState("");
   const [benchmarkCode, setBenchmarkCode] = useState("");
   const [selectedAssets, setSelectedAssets] = useState<AssetRow[]>([]);
-  const [search, setSearch] = useState("");
+  const [assetSelect, setAssetSelect] = useState("");
+  const [classFilter, setClassFilter] = useState("");
   const [model, setModel] = useState("equal_weight");
   const [lookback, setLookback] = useState(12);
   const [riskFreeRate, setRiskFreeRate] = useState(2.0);
-  const [startDate, setStartDate] = useState("");
+  const [startDate, setStartDate] = useState("2016-01-01");
   const [endDate, setEndDate] = useState("");
-  const [initialCapital, setInitialCapital] = useState(1000000);
+  const [initialCapital, setInitialCapital] = useState(100);
   const [rebalancePeriod, setRebalancePeriod] = useState("quarterly");
   const [rebalanceTiming, setRebalanceTiming] = useState("start");
   const [saving, setSaving] = useState(false);
 
   const isEqualWeight = model === "equal_weight";
 
+  useEffect(() => {
+    if (assets.length > 0 && !endDate) {
+      setEndDate(assets.reduce((m, a) => (a.end_date > m ? a.end_date : m), ""));
+    }
+  }, [assets]);
+
   const addAsset = (a: Asset) => {
     if (selectedAssets.find((s) => s.code === a.code)) return;
     if (selectedAssets.length >= 50) return;
-    setSelectedAssets([...selectedAssets, { ...a, initial_weight: 0, weight_lo: 0, weight_hi: 1 }]);
-    setSearch("");
+    const updated = [...selectedAssets, { ...a, weight_lo: 0, weight_hi: 1 }];
+    setSelectedAssets(updated);
+    if (!benchmarkCode) setBenchmarkCode(updated[0].code);
+    setAssetSelect("");
   };
 
   const removeAsset = (code: string) =>
     setSelectedAssets(selectedAssets.filter((a) => a.code !== code));
-
-  const equalWeights = () => {
-    const n = selectedAssets.length;
-    if (n === 0) return;
-    setSelectedAssets(selectedAssets.map((a) => ({ ...a, initial_weight: parseFloat((1 / n).toFixed(4)) })));
-  };
 
   const clearBounds = () =>
     setSelectedAssets(selectedAssets.map((a) => ({ ...a, weight_lo: 0, weight_hi: 1 })));
@@ -83,7 +85,6 @@ export default function NewPortfolio() {
           code: a.code,
           name: a.name,
           asset_class: a.asset_class,
-          initial_weight: a.initial_weight,
           weight_lo: a.weight_lo,
           weight_hi: a.weight_hi,
         })),
@@ -105,11 +106,12 @@ export default function NewPortfolio() {
     }
   };
 
+  const assetClasses = [...new Set(assets.map((a) => a.asset_class))].filter(Boolean);
+
   const filteredAssets = assets.filter(
     (a) =>
       !selectedAssets.find((s) => s.code === a.code) &&
-      (a.code.toLowerCase().includes(search.toLowerCase()) ||
-        a.name.toLowerCase().includes(search.toLowerCase()))
+      (!classFilter || a.asset_class === classFilter)
   );
 
   return (
@@ -142,33 +144,33 @@ export default function NewPortfolio() {
           </div>
         </div>
 
-        <div className="relative mb-3">
-          <input
-            className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索资产代码或名称..."
-          />
-          {search && filteredAssets.length > 0 && (
-            <div className="absolute z-10 top-full left-0 right-0 bg-white border border-gray-200 rounded shadow-lg max-h-48 overflow-auto">
-              {filteredAssets.map((a) => (
-                <button
-                  key={a.code}
-                  onClick={() => addAsset(a)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex justify-between"
-                >
-                  <span className="font-mono text-brand-deep-blue">{a.code}</span>
-                  <span className="text-gray-500">{a.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="flex gap-2 mb-3">
+          <select
+            className="border border-gray-300 rounded px-3 py-2 text-sm shrink-0"
+            value={classFilter}
+            onChange={(e) => { setClassFilter(e.target.value); setAssetSelect(""); }}
+          >
+            <option value="">全部类别</option>
+            {assetClasses.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <select
+            className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm"
+            value={assetSelect}
+            onChange={(e) => {
+              const a = assets.find((x) => x.code === e.target.value);
+              if (a) addAsset(a);
+            }}
+          >
+            <option value="">-- 选择资产 --</option>
+            {filteredAssets.map((a) => (
+              <option key={a.code} value={a.code}>{a.code} - {a.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="flex gap-2 mb-3">
-          <button onClick={equalWeights} className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50">
-            <Equal className="w-3 h-3" /> 等权重
-          </button>
           <button onClick={clearBounds} className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50">
             <Ban className="w-3 h-3" /> 取消比例限制
           </button>
@@ -178,7 +180,7 @@ export default function NewPortfolio() {
           <table className="w-full text-xs border border-gray-200 rounded overflow-hidden">
             <thead className="bg-gray-50">
               <tr>
-                {["代码", "名称", "类别", "初始比例(%)", "下限(%)", "上限(%)", ""].map((h) => (
+                {["代码", "名称", "类别", "下限(%)", "上限(%)", ""].map((h) => (
                   <th key={h} className="text-left px-3 py-2 text-gray-600">{h}</th>
                 ))}
               </tr>
@@ -189,15 +191,6 @@ export default function NewPortfolio() {
                   <td className="px-3 py-2 font-mono text-brand-deep-blue">{a.code}</td>
                   <td className="px-3 py-2">{a.name}</td>
                   <td className="px-3 py-2 text-gray-500">{a.asset_class}</td>
-                  <td className="px-3 py-2">
-                    <input type="number" min={0} max={100} step={0.01}
-                      className="w-20 border border-gray-200 rounded px-2 py-1"
-                      value={(a.initial_weight * 100).toFixed(2)}
-                      onChange={(e) => setSelectedAssets(selectedAssets.map((s) =>
-                        s.code === a.code ? { ...s, initial_weight: parseFloat(e.target.value) / 100 } : s
-                      ))}
-                    />
-                  </td>
                   <td className="px-3 py-2">
                     <input type="number" min={0} max={100} step={1}
                       className="w-20 border border-gray-200 rounded px-2 py-1"

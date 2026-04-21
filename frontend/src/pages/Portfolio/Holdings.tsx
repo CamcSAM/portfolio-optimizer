@@ -36,9 +36,9 @@ export default function Holdings() {
         <div className="flex-1">
           <div className="grid grid-cols-4 gap-3 mb-4">
             {[
-              { label: "净资产", value: `¥${(current.net_assets / 1e4).toFixed(2)}万` },
-              { label: "现金", value: `¥${(current.cash / 1e4).toFixed(2)}万` },
-              { label: "持仓市值", value: `¥${(current.positions_value / 1e4).toFixed(2)}万` },
+              { label: "净资产", value: current.net_assets.toFixed(2) },
+              { label: "现金", value: current.cash.toFixed(2) },
+              { label: "持仓市值", value: current.positions_value.toFixed(2) },
               { label: "持仓个数", value: String(current.positions_count) },
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-lg border border-gray-100 px-4 py-3">
@@ -63,8 +63,8 @@ export default function Holdings() {
                     <td className="px-4 py-2.5 font-mono text-brand-deep-blue">{p.code}</td>
                     <td className="px-4 py-2.5">{fmtNum(p.latest_price)}</td>
                     <td className="px-4 py-2.5">{fmtNum(p.cost_price)}</td>
-                    <td className="px-4 py-2.5">{fmtNum(p.quantity, 0)}</td>
-                    <td className="px-4 py-2.5">{fmtNum(p.market_value, 0)}</td>
+                    <td className="px-4 py-2.5">{fmtNum(p.quantity, 2)}</td>
+                    <td className="px-4 py-2.5">{fmtNum(p.market_value, 2)}</td>
                     <td className="px-4 py-2.5 text-brand-red">{fmtPct(p.weight)}</td>
                   </tr>
                 ))}

@@ -1,9 +1,19 @@
-import os, json, uuid
+import math, os, json, uuid
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 
 router = APIRouter()
+
+
+def _sanitize(obj):
+    if isinstance(obj, float):
+        return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
 PORTFOLIOS_DIR = "data/portfolios"
 
 
@@ -29,7 +39,7 @@ class AssetConfig(BaseModel):
     code: str
     name: str
     asset_class: str
-    initial_weight: float
+    initial_weight: float = 0.0
     weight_lo: float
     weight_hi: float
 
@@ -121,10 +131,22 @@ def run_backtest_endpoint(pid: str):
         df = pd.read_csv(csv_path, parse_dates=["date"], index_col="date")
         price_data[code] = df
 
-    result = run_backtest(data, price_data)
+    result = _sanitize(run_backtest(data, price_data))
     data["result"] = result
     _save_portfolio(pid, data)
     return result
+
+
+class RenameRequest(BaseModel):
+    name: str
+
+
+@router.patch("/{pid}/rename")
+def rename_portfolio(pid: str, req: RenameRequest):
+    data = _load_portfolio(pid)
+    data["name"] = req.name
+    _save_portfolio(pid, data)
+    return {"id": pid, "name": req.name}
 
 
 @router.get("/{pid}/result")
@@ -132,4 +154,4 @@ def get_result(pid: str):
     data = _load_portfolio(pid)
     if "result" not in data:
         raise HTTPException(status_code=404, detail="No backtest result found")
-    return data["result"]
+    return _sanitize(data["result"])

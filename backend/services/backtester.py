@@ -50,6 +50,10 @@ def run_backtest(config: dict, price_data: Dict[str, pd.DataFrame]) -> dict:
     benchmark_series = prices_df[benchmark_code]
     trading_days = prices_df.index
 
+    # Extended price history (includes pre-start data) used only for optimization lookback
+    all_prices_df = pd.DataFrame({c: price_frames[c] for c in assets})
+    portfolio_prices_extended = all_prices_df.loc[:end].dropna()
+
     bounds = {a["code"]: (a["weight_lo"], a["weight_hi"]) for a in config["assets"]}
     rebalance_dates = set(_get_rebalance_dates(trading_days, rebalance_period, rebalance_timing))
 
@@ -61,7 +65,7 @@ def run_backtest(config: dict, price_data: Dict[str, pd.DataFrame]) -> dict:
 
     for i, date in enumerate(trading_days):
         if date in rebalance_dates or i == 0:
-            historical = portfolio_prices.loc[:date]
+            historical = portfolio_prices_extended.loc[:date]
             params = {"lookback_months": lookback_months, "risk_free_rate": risk_free_rate}
             weights = optimize(model, historical, bounds, params)
 
@@ -108,7 +112,7 @@ def run_backtest(config: dict, price_data: Dict[str, pd.DataFrame]) -> dict:
     }
 
     risk_contrib = _compute_risk_contribution(portfolio_prices, weight_log, assets)
-    ef = _compute_efficient_frontier(portfolio_prices, bounds, assets, lookback_months)
+    ef = _compute_efficient_frontier(portfolio_prices, bounds, assets, lookback_months, nav_normalized)
 
     return {
         "kpis": kpis,
@@ -165,7 +169,7 @@ def _compute_risk_contribution(prices: pd.DataFrame, weight_log: dict, assets: L
     }
 
 
-def _compute_efficient_frontier(prices: pd.DataFrame, bounds: dict, assets: List[str], lookback_months: int) -> dict:
+def _compute_efficient_frontier(prices: pd.DataFrame, bounds: dict, assets: List[str], lookback_months: int, nav: pd.Series = None) -> dict:
     historical = prices.iloc[-lookback_months * 21:]
     returns = historical.pct_change().dropna()
     mu = returns.mean().values * 252
@@ -190,4 +194,11 @@ def _compute_efficient_frontier(prices: pd.DataFrame, bounds: dict, assets: List
         port_vol = float(np.sqrt(w @ cov @ w))
         points.append({"vol": port_vol, "ret": port_ret})
 
-    return {"points": points[:1000]}
+    actual_point = None
+    if nav is not None and len(nav) >= 2:
+        years = len(nav) / 252
+        ann_ret = float((nav.iloc[-1] / nav.iloc[0]) ** (1 / years) - 1)
+        ann_vol = float(nav.pct_change().dropna().std() * np.sqrt(252))
+        actual_point = {"vol": ann_vol, "ret": ann_ret}
+
+    return {"points": points[:1000], "actual": actual_point}
